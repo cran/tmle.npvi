@@ -1,4 +1,4 @@
-simulateData <- function(B, W, X, g, mu, sigma2, theta=NULL, Y=NA, weightsW=rep(1, length(W)), family=c("parsimonious", "gaussian"), verbose=FALSE) {
+simulateData <- function(B, W, X, Xq, g, mu, sigma2, theta=NULL, Y=list(value=NA, index=NA), weightsW=rep(1, length(W)), family=c("parsimonious", "gaussian"), verbose=FALSE) {
   ## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   ## Validate arguments
   ## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -10,7 +10,12 @@ simulateData <- function(B, W, X, g, mu, sigma2, theta=NULL, Y=NA, weightsW=rep(
 
   ## Argument 'X':
   X <- Arguments$getNumerics(X);
-   
+
+  ## Argument 'Xq':
+  Xq.value <- Arguments$getNumerics(Xq$value);
+  Xq.index <- Arguments$getIntegers(Xq$index);
+  nMax <- nrow(Xq)
+  
   ## Argument 'g':
   mode <- mode(g);
   if (mode != "function") {
@@ -39,12 +44,13 @@ simulateData <- function(B, W, X, g, mu, sigma2, theta=NULL, Y=NA, weightsW=rep(
   
   ## Argument 'family':
   family <- match.arg(family);
-  
+
   ## Argument 'Y'
-  Y <- Arguments$getNumerics(Y);
+  Y.value <- Arguments$getNumerics(Y$value);
+  Y.index <- Arguments$getNumerics(Y$index);
   if (!is.null(theta)) {
-    if (any(is.na(Y)) & family=="gaussian") {
-      throw("Argument 'Y' of mode 'numerics' should be provided when 'family' is 'gaussian'.")
+    if (any(is.na(Y.value)) & family=="gaussian") {
+      throw("Argument 'Y$value' of mode 'numerics' should be provided when 'family' is 'gaussian'.")
     }
   }
     
@@ -75,7 +81,10 @@ simulateData <- function(B, W, X, g, mu, sigma2, theta=NULL, Y=NA, weightsW=rep(
   if (family=="gaussian") {
     XB[!U] <- 0
   } else if (family=="parsimonious") {
-    XB[!U] <- whichXisZero[1] ## first index of row with X equal to 0
+    ## old:
+    ## XB[!U] <- whichXisZero[1] ## first index of row with X equal to 0
+    ## new:
+    XB[!U] <- Xq.index[Xq.value==0]
   }
   ##
   muW <- muWB[U]
@@ -101,11 +110,15 @@ simulateData <- function(B, W, X, g, mu, sigma2, theta=NULL, Y=NA, weightsW=rep(
       YB <- rnorm(B, mean=theta(cbind(X=XB, W=WB)), sd=sd(Y))
     }
   } else if (family=="parsimonious") {
-    indices <- simulateParsimoniouslyXgivenW(WB[U], obsX, condMeanX, sigma2, parameters)
-    XB[U] <- whichXisNotZero[indices]
+    indices <- simulateParsimoniouslyXgivenW(WB[U], min(obsX), max(obsX),
+                                             Xq, condMeanX, sigma2, parameters)
+    ## ## CAUTION
+    Xq.index <- Xq.index[Xq.value!=0]
+    XB[U] <- Xq.index[indices]
     if (!is.null(theta)) {
       T <- theta(cbind(X=XB, W=WB))
-      YB <- simulateParsimoniouslyYgivenXW(T, Y)
+      indices <- simulateParsimoniouslyYgivenXW(T, Y.value)
+      YB <- Y.index[indices]
     }
   }
   obsB <- cbind(W=WB, X=XB, Y=YB)

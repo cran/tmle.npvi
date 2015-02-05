@@ -1,4 +1,4 @@
-tmle.npvi <- structure(
+tmle.npvi. <- structure(
     function#Targeted Minimum Loss Estimation of NPVI
 ### Carries   out  the   targeted  minimum   loss  estimation   (TMLE)   of  a
 ### non-parametric variable importance measure of a continuous exposure.
@@ -16,6 +16,14 @@ tmle.npvi <- structure(
 ### A \code{function} involved in the  definition of the parameter of interest
 ### \eqn{\psi},  which must  satisfy  \eqn{f(0)=0} (see  Details). Defaults  to
 ### \code{identity}.
+     nMax=30L,
+### An \code{integer} (defaults to \code{30L}; \code{10L} is the
+### smallest authorized value and we recommend a value less than
+### \code{50L} for reasonable computational time) indicating the maximum number of
+### observed values of \eqn{X\neq 0} which are used to create the
+### supports of the conditional distributions of \eqn{X} given \eqn{W}
+### and \eqn{X\neq0} involved in the simulation under \eqn{P_n^k} when
+### \code{family} is set to "parsimonious".
      flavor=c("learning", "superLearning"),
 ### Indicates whether the construction of the relevant features of \eqn{P_n^0}
 ### and \eqn{P_n^k}, the (non-targeted  yet) initial and (targeted) successive
@@ -51,7 +59,7 @@ tmle.npvi <- structure(
      bound=1,
 ### A  positive  \code{numeric} (defaults  to  \code{1}),  upper-bound on  the
 ### absolute value of the fluctuation parameter.
-     B=1e5L,
+     B=1e5,
 ### An \code{integer}  (defaults to \code{1e5}) indicating the  sample size of
 ### the data set  simulated under each \eqn{P_n^k} to  compute an approximated
 ### value of \eqn{\Psi(P_n^k)}), the parameter of interest at \eqn{P_n^k}. The
@@ -80,6 +88,16 @@ tmle.npvi <- structure(
 ### of values  of the estimated probabilities  \eqn{P_n^k(X=0|W)} that \eqn{X}
 ### be  equal to  its  reference  value \code{0}  given  \eqn{W}. Defaults  to
 ### \code{95e-2}, and must be larger than \code{gmin}.
+     mumin=quantile(f(obs[obs[, "X"]!=0, "X"]), type=1, probs=0.01),
+### A  \code{numeric}, lower-bound  on the  range of  values of  the estimated
+### conditional  expectation  \eqn{E_{P_n^k}(X|X\neq  0,W)} of  \eqn{X}  given
+### \eqn{X\neq 0} and \eqn{W}.  Defaults  to the first percentile of \code{X},
+### and must be smaller than \code{mumax}.
+     mumax=quantile(f(obs[obs[, "X"]!=0, "X"]), type=1, probs=0.99),
+### A  \code{numeric}, upper-bound  on the  range of  values of  the estimated
+### conditional  expectation  \eqn{E_{P_n^k}(X|X\neq  0,W)} of  \eqn{X}  given
+### \eqn{X\neq 0}  and \eqn{W}.  Defaults  to the 99th percentile  of \eqn{X},
+### and must be larger than \code{mumin}.
      verbose=FALSE,
 ### Prescribes the amount of information  output by the function.  Defaults to
 ### \code{FALSE}.
@@ -100,6 +118,7 @@ tmle.npvi <- structure(
 ### be reduced  in size (for  a faster execution). Currently  implemented only
 ### for flavor \code{learning}.
      ) {
+      ##alias<< tmle.npvi
       ##seealso<< getSample, getHistory
       
       ##references<< Chambaz, A.,  Neuvial, P., & van der  Laan, M. J. (2012).
@@ -140,11 +159,11 @@ tmle.npvi <- structure(
       ##\code{flavor}.
       ##
       ##The  "superLearning"  \code{flavor}  requires the  \code{SuperLearner}
-      ##package  and, by  default, the  \code{DSA},  \code{e1071}, \code{gam},
+      ##package  and, by  default, the  \code{e1071}, \code{gam},
       ##\code{glmnet}, \code{polspline} and \code{randomForest} packages.
       ## 
       ##If  \code{family}  is set  to  "parsimonious"  (recommended) then  the
-      ##package \code{sgeostat} is required.
+      ##packages \code{sgeostat} and \code{geometry} are required.
       
       ## Arguments
       mode <- mode(lib)
@@ -153,16 +172,17 @@ tmle.npvi <- structure(
       }
       test <- setdiff(names(lib), paste0("learn", c("G", "MuAux", "Theta",
                                                     "DevG", "DevMu", "DevTheta",
-                                                    "condExpX2givenW", "condExpXYgivenW")))
+                                                    "CondExpX2givenW", "CondExpXYgivenW")))
       if (length(test)) {
         throw("Missing element in argument 'lib':", test);
       }
       
       flavor <- match.arg(flavor)
+      nMax <- Arguments$getInteger(nMax, c(10, Inf))
       nodes <- Arguments$getInteger(nodes)
       family <- match.arg(family)
 
-      if (B<1e5) {
+      if (B<5e4) {
         warning("Parameter 'B' may be too small; try a larger 'B'")
       }
       
@@ -170,32 +190,34 @@ tmle.npvi <- structure(
       if (length(lib)==0) {
         ## get our library:
         if (flavor=="superLearning") {
-          lib <- superLearningLib
+          lib <- tmle.npvi::superLearningLib
         } else {
-          lib <- learningLib
+          lib <- tmle.npvi::learningLib
         }
       }
        
       if (flavor=="superLearning") {
-        library(SuperLearner)
         if (is.null(cvControl)) {
           warning("Setting 'V=10' in 'SuperLearner.'")
-          cvControl <- SuperLearner.CV.control(V=10L)
+          cvControl <- SuperLearner::SuperLearner.CV.control(V=10L)
+        } else {
+          cvControl <- Arguments$getInteger(cvControl,c(2, Inf))
+          cvControl <- SuperLearner::SuperLearner.CV.control(V=cvControl)
         }
         if (nodes==1) {
           SuperLearner. <- function(...) {
-            SuperLearner(cvControl=cvControl, ...)
+            SuperLearner::SuperLearner(cvControl=cvControl, ...)
           }
         } else {
           tf <- tempfile("snitch.Rout")
           cl <- parallel::makeCluster(nodes, type="PSOCK", outfile=tf) # can use different types here
           on.exit(parallel::stopCluster(cl))
           ##
-          SL.library <- unique(unlist(superLearningLib))
+          SL.library <- unique(unlist(tmle.npvi::superLearningLib))
           parallel::clusterSetRNGStream(cl, iseed=2343)
           parallel::clusterExport(cl, SL.library)
           SuperLearner. <- function(...) {
-            snowSuperLearner(cluster=cl, cvControl=cvControl, ...)
+            SuperLearner::snowSuperLearner(cluster=cl, cvControl=cvControl, ...)
           }
         }
       } else {
@@ -208,9 +230,20 @@ tmle.npvi <- structure(
       ## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ## Declaration
       ## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-      npvi <- NPVI(obs=obs, f=f, family=family, tabulate=tabulate, 
+      if (any(is.na(obs))) {
+        throw("The matrix 'obs' contains at least one 'NA'. This is not allowed.")
+      }
+
+      p0min <- 0.1
+      n0min <- p0min*nrow(obs)
+      n0 <- sum(obs[, "X"]==0)
+      if (n0<n0min) {
+        warning("Only ", n0, " out of ", nrow(obs), " observations have 'X==0'. Should 'X' be thresholded?")
+      }
+      
+      npvi <- NPVI(obs=obs, f=f, nMax=nMax, family=family, tabulate=tabulate, 
                    gmin=gmin, gmax=gmax,
-                   mumin=min(f(obs[, "X"])), mumax=max(f(obs[, "X"])),
+                   mumin=mumin, mumax=mumax,
                    thetamin=min(obs[, "Y"]), thetamax=max(obs[, "Y"]),
                    stoppingCriteria=stoppingCriteria)
 
@@ -231,8 +264,9 @@ tmle.npvi <- structure(
       ## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       ## Update
       ## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+      cat("  iteration ")
       while ((kk <= iter) && (is.na(conv) || !conv)) {
-        print(kk)
+        cat(kk, " ")
         kk <- kk+1
 
         ## k^th update
@@ -249,6 +283,7 @@ tmle.npvi <- structure(
         updateConv(npvi, B=B)
         conv <- getConv(npvi)
       }
+      cat("\n")
 
       
       ## history <- getHistory(npvi)
@@ -265,11 +300,7 @@ tmle.npvi <- structure(
 ###   parameter of interest. Use the \code{method} \code{getPsiSd} to retrieve
 ###   it.}
     }, ex=function() {
-      ## Setting the verbosity parameter and seed
-      library("R.utils")
-      log <- Arguments$getVerbose(-8, timestamp=TRUE)
       set.seed(12345)
-      
       ##
       ## Simulating a data set and computing the true value of the parameter
       ##
@@ -300,7 +331,7 @@ tmle.npvi <- structure(
       obs <- obsC
 
       ## True psi and confidence intervals (case 'f=identity')      
-      sim <- getSample(1e4, O, lambda0, p=p, omega=omega, sigma2=1, Sigma3=S, verbose=log)
+      sim <- getSample(1e4, O, lambda0, p=p, omega=omega, sigma2=1, Sigma3=S)
       truePsi <- sim$psi
 
       confInt0 <- truePsi + c(-1, 1)*qnorm(.975)*sqrt(sim$varIC/nrow(sim$obs))
@@ -318,7 +349,7 @@ tmle.npvi <- structure(
       ##
 
       ## Running the TMLE procedure
-      npvi <- tmle.npvi(obs, f=identity, flavor="learning")
+      npvi <- tmle.npvi(obs, f=identity, flavor="learning", B=5e4, nMax=10)
 
       ## Summarizing its results
       npvi
@@ -345,6 +376,34 @@ tmle.npvi <- structure(
       abline(h=confInt0, col=2)
       
     })
+
+tmle.npvi <- function(obs,         f=identity,        nMax=30L,
+                      flavor=c("learning", "superLearning"),  lib=list(),  nodes=1L,  cvControl=NULL,
+                      family=c("parsimonious",   "gaussian"),  
+                      cleverCovTheta=FALSE, bound=1, B=1e5, trueGMu=NULL,  iter=5L,
+                      stoppingCriteria=list(mic=0.01,  div=0.01,  psi=0.1),
+                      gmin=5e-2,   gmax=.95,
+                      mumin=quantile(f(obs[obs[,  "X"]!=0,   "X"]),  type=1, probs=0.01),
+                      mumax=quantile(f(obs[obs[, "X"]!=0, "X"]),  type=1, probs=0.99),
+                      verbose=FALSE, tabulate=TRUE, exact=TRUE, light=TRUE) {
+  flavor <- match.arg(flavor)
+  tmle <- try(tmle.npvi.(obs=obs, f=f, nMax=nMax, flavor=flavor, lib=lib, nodes=nodes, cvControl=cvControl,
+                         family=family, cleverCovTheta=cleverCovTheta, bound=bound, B=B,
+                         trueGMu=trueGMu, iter=iter,
+                         stoppingCriteria=stoppingCriteria, gmin=gmin, gmax=gmax,
+                         mumin=mumin, mumax=mumax, verbose=verbose, tabulate=tabulate, exact=exact, light=light))
+  failed <- inherits(tmle, "try-error")
+  if (flavor=="superLearning" & failed) {
+    tmle <- tmle.npvi.(obs=obs, f=f, nMax=nMax, flavor="learning", lib=tmle.npvi::learningLib, nodes=1L,
+                       cvControl=cvControl, family=family, cleverCovTheta=cleverCovTheta, bound=bound, B=B, 
+                       trueGMu=trueGMu, iter=iter, stoppingCriteria=stoppingCriteria, gmin=gmin, gmax=gmax,
+                         mumin=mumin, mumax=mumax, verbose=verbose, tabulate=tabulate, exact=exact, light=light)
+    attr(tmle, "flag") <- "Flavor 'superLearning' failed, carried out flavor 'learning' instead."
+  }
+  return(tmle)
+}
+## formals(tmle.npvi) <- formals(tmle.npvi.)
+
 
 ############################################################################
 ## HISTORY:

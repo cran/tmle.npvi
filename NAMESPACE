@@ -1,5 +1,25 @@
-import(R.utils, MASS)
-importFrom(sgeostat, in.chull)
+import(R.utils)
+importFrom(R.methodsS3, setMethodS3, throw)
+importFrom(R.oo, setConstructorS3, extend, Object, getHistory)
+importFrom(sgeostat, in.chull, in.polygon)
+importFrom(geometry, cart2bary)
+importFrom(MASS, mvrnorm)
+importFrom(Matrix, sparseMatrix)
+importFrom(stats, predict)
+
+S3method(predict, SL.glm.condExpX2givenW)
+S3method(predict, SL.glm.condExpXYgivenW)
+S3method(predict, SL.glm.g)
+S3method(predict, SL.glm.theta)
+
+S3method(as.character, NPVI)
+S3method(getHistory, NPVI)
+S3method(getObs, NPVI)
+S3method(getPsi, NPVI)
+S3method(getPsiSd, NPVI)
+S3method(getPValue, NPVI)
+S3method(getPValue, matrix)
+S3method(setConfLevel, NPVI)
 
 export(as.character.NPVI,
        extractW, extractXW,
@@ -7,8 +27,12 @@ export(as.character.NPVI,
        getLightFit,
        getObs, getObs.NPVI,
        getPsi, getPsi.NPVI,
-       getPsiSd, getPsiSd.NPVI, 
+       getPsiSd, getPsiSd.NPVI,
+       getPValue, getPValue.NPVI, getPValue.matrix,
        getSample,
        setConfLevel, setConfLevel.NPVI,
-       tmle.npvi)
-
+       tmle.npvi,
+       SL.glm.g,
+       SL.glm.theta,
+       SL.glm.condExpX2givenW,
+       SL.glm.condExpXYgivenW)

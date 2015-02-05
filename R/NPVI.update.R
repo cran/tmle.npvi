@@ -48,7 +48,7 @@ setMethodS3("update", "NPVI", function(object,
   }
   ## Argument 'B':
   B <- Arguments$getInteger(B);
-  
+
   ## Argument 'light'
   light <- Arguments$getLogical(light);
 
@@ -83,7 +83,9 @@ setMethodS3("update", "NPVI", function(object,
   ## Retrieve elements of 'this'
   ## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   obs <- getObs(this);
-  obsT <- getObs(this, tabulate=FALSE)
+  obsT <- getObs(this, tabulate=FALSE);
+  Xq <- getXq(this);
+  Yq <- getYq(this);
   family <- getFamily(this);
   tabulate <- getTabulate(this)
   g <- getG(this);
@@ -103,8 +105,10 @@ setMethodS3("update", "NPVI", function(object,
   } else {
     weightsW <- getWeightsW(this)
     fY <- getFY(this)
-    obsB <- simulateData(B, obs[, "W"], obsT[, "X"], g, mu, sigma2,
-                         theta=theta, Y=obsT[, "Y"], weightsW=weightsW, family=family)
+    obsB <- simulateData(B, obs[, "W"], obsT[, "X"], Xq, g, mu, sigma2,
+                         theta=theta, Y=Yq, 
+                         weightsW=weightsW,
+                         family=family)
     ## taken from 'updateEfficientInfluenceCurve'
     thetaXW <- theta(obsB[, c("X", "W")]);
     theta0W <- theta0(obsB[, "W", drop=FALSE]);
@@ -113,7 +117,7 @@ setMethodS3("update", "NPVI", function(object,
     
     X <- fX(obsB)
     Y <- fY(obsB)
-          
+              
     D1 <- X * (thetaXW - theta0W - X * psi);
     D2 <- (Y - thetaXW) * (X - muW/gW*(X==0));
     verbose && summary(verbose, D1);
@@ -194,11 +198,11 @@ setMethodS3("update", "NPVI", function(object,
                                           family=gaussian(), ...)
       condExpX2givenW <- function(W) {
         Wd <- as.data.frame(W)
-        predict.SuperLearner(fitCondExpX2givenW, newdata=Wd)$pred
+        predict(fitCondExpX2givenW, newdata=Wd)$pred
       }
       condExpXYgivenW <- function(W) {
         Wd <- as.data.frame(W)
-        predict.SuperLearner(fitCondExpXYgivenW, newdata=Wd)$pred
+        predict(fitCondExpXYgivenW, newdata=Wd)$pred
       }
       verbose && cat(verbose, "E(X^2|W):");
       verbose && print(verbose, summary(condExpX2givenW(extractW(obsD))));
@@ -227,18 +231,20 @@ setMethodS3("update", "NPVI", function(object,
     }
     
     
-    ## Update 'mu' *before* 'g' as 'mu' depends on (the existing) 'g'.
+    ## Update 'g' *before* 'mu' as the updated 'mu' depends on the updated 'g', see *inside* 'updateMu'.
+    gW <- g(extractW(obs))
+    devG <- estimateDevG(gW, obsT, eic1, flavor=flavor, learnDevG=learnDevG, light=light,
+                         SuperLearner.=SuperLearner.,
+                         ..., verbose=verbose);
+    updateG(this, devG, exact=exact, effICW=effICW);
+
+
     muW <- mu(extractW(obs))
     devMu <- estimateDevMu(muW, obsT, eic1, flavor=flavor, learnDevMu=learnDevMu, light=light,
                            SuperLearner.=SuperLearner.,
                            ..., verbose=verbose);
     updateMu(this, devMu, exact=exact, effICW=effICW);
 
-    gW <- g(extractW(obs))
-    devG <- estimateDevG(gW, obsT, eic1, flavor=flavor, learnDevG=learnDevG, light=light,
-                         SuperLearner.=SuperLearner.,
-                         ..., verbose=verbose);
-    updateG(this, devG, exact=exact, effICW=effICW);
 
     ## Update 'sigma2'
     X <- fX(obs)

@@ -1,11 +1,21 @@
+% \VignetteEngine{knitr::knitr}
 % \VignetteIndexEntry{tmle.npvi}
 % \VignetteDepends{tmle.npvi}
 % \VignetteKeywords{Targeted minimum loss estimation}
 % \VignettePackage{tmle.npvi}
 
 \documentclass[a4paper]{article}
-\usepackage{Sweave,amsmath,amssymb,manfnt}
-\SweaveOpts{prefix.string=fig}
+\usepackage{amsmath,amssymb,manfnt}
+\usepackage[textwidth=15cm, textheight=23cm]{geometry}
+\graphicspath{{fig/}}
+
+<<include=FALSE>>=
+library(knitr)
+opts_chunk$set(
+fig.path='fig/'
+)
+@
+
 
 \addtolength{\parskip}{\baselineskip}
 
@@ -278,7 +288,7 @@ print(round(history, 4))
 
 The following lines produce the plot shown in Figure~\ref{fig:visu}.
 
-<<confInt, fig=TRUE, include=FALSE>>=
+<<confInt, include=FALSE>>=
 hp <- history[, "psi"]
 hs <- history[, "sic"]
 hs[1] <- NA
@@ -298,7 +308,7 @@ abline(h=confInt0, col="red")
 
 \begin{figure}
   \centering
-  \includegraphics[width=6cm]{fig-confInt}
+  \includegraphics[width=6cm]{confInt-1}
   \caption{A visual summary of  the TMLE procedure contained in \texttt{npvi}.
     The black  dots represent  the successive values  of $\Psi_{f}(P_{n}^{k})$
     for    $k=0,1,2$,   where   $\Psi_{f}(P_{n}^{2})$    is   the    TMLE   of
@@ -312,10 +322,95 @@ abline(h=confInt0, col="red")
   \label{fig:visu}
 \end{figure}
 
+\section{Analysis of TCGA data}
+
+\subsection{TCGA data included in the package}
+\label{subsec:tcga}
+
+The package  includes real data, namely  expression, DNA copy  number, and DNA
+methylation  data of 150  genes for  463 breast  cancer samples  from publicly
+available TCGA data~\cite{TCGA12}. 
+<<>>=
+data(tcga2012brca)
+@ 
+
+Gene names and genomic coordinates are stored in the names of the list:
+<<>>=
+nms <- names(tcga2012brca)
+str(nms)
+@ 
+
+
+\subsection{Gene TP53 analysis}
+
+The data  set associated  with gene TP53  includes 3 DNA  methylation measures
+across the gene.
+<<pairs>>=
+ii <- grep("TP53", nms)
+obs <- tcga2012brca[[ii]]
+head(obs)
+@ 
+
+In  this case,  there are  only \Sexpr{sum(obs[,  "X"]==0)}  observations with
+neutral copy number ($X=0$ after shifting).  We arbitrarily set a threshold to
+$0.02$. This is what the data set looks like, where green points correspond to
+observations whose  copy numbers are  smaller than this threshold  in absolute
+value:
+<<>>=
+thr <- 0.02
+whichSmall <- which(abs(obs[, "X"]) <= thr)
+cols <- rep("black", nrow(obs))
+cols[whichSmall] <- "green"
+pairs(obs, main=nms[ii], col=cols, pch=19, cex=0.5)
+
+## thresholding
+whichSmall <- which(abs(obs[, "X"]) <= thr)
+obs[whichSmall, "X"] <- 0
+@ 
+
+After  thresholding  there are  \Sexpr{sum(obs[,  "X"]==0)} observations  with
+neutral copy number.  We analyze the data set as follows:
+<<>>=
+npvi.TP53 <- tmle.npvi(obs)
+npvi.TP53
+@
+
+\subsection{Whole genome analysis}
+
+The following script creates a data set for each gene from TCGA~\cite{TCGA12}.
+<<eval=FALSE>>=
+system.file("testScripts/tcga2012brca/01.merge,manyCG.R", 
+            package="tmle.npvi")
+@ 
+
+Once it is run, executing the script below yields the \texttt{tcga2012brca} data set
+presented in Section~\ref{subsec:tcga}.
+<<eval=FALSE>>=
+system.file("testScripts/tcga2012brca/01.1.exportGeneLevelData.R", 
+            package="tmle.npvi")
+@    
+
+The following  script analyzes all the  data sets previously  created based on
+the \verb|tmle.npvi| function.
+<<eval=FALSE>>=
+system.file("testScripts/tcga2012brca/02.tmle.npvi.R", 
+            package="tmle.npvi")
+@  
+
+
+The computation of $p$-values and illustration of the results along the genome
+can be performed by drawing inspiration from the following last two scripts.
+<<eval=FALSE>>=
+system.file("testScripts/tcga2012brca/03.pValues.R", 
+            package="tmle.npvi")
+system.file("testScripts/tcga2012brca/04.propZero.R", 
+            package="tmle.npvi")
+@ 
+
 \section{Session information}
 \label{sec:session-information}
 
-<<>>=
+<<echo=FALSE>>=
 sessionInfo()
 @ 
 
@@ -338,6 +433,11 @@ Polley, E. and van~der Laan, M.~J. (2011).
 \newblock Comprehensive genomic characterization defines human glioblastoma
   genes and core pathways.
 \newblock {\em Nature}, 455:1061--1068.
+
+\bibitem[{The Cancer Genome Atlas (TGCA) research Network}, 2012]{TCGA12}
+{The Cancer Genome Atlas (TGCA) research Network} (2012).
+\newblock .
+\newblock {\em Nature}, 490:(7418), 61--70.
 
 \bibitem[van~der Laan et~al., 2007]{vanderlaan07}
 van~der Laan, M.~J., Polley, E.~C., and Hubbard, A.~E. (2007).

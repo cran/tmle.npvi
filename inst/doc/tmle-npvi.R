@@ -1,17 +1,16 @@
-### R code from vignette source 'tmle-npvi.Rnw'
+## ----include=FALSE-------------------------------------------------------
+library(knitr)
+opts_chunk$set(
+fig.path='fig/'
+)
 
-###################################################
-### code chunk number 1: tmle-npvi.Rnw:83-87
-###################################################
+## ------------------------------------------------------------------------
 library("tmle.npvi")
 library("R.utils")
 log <- Arguments$getVerbose(-8, timestamp=TRUE)
 set.seed(12345)
 
-
-###################################################
-### code chunk number 2: tmle-npvi.Rnw:124-135
-###################################################
+## ------------------------------------------------------------------------
 O <- cbind(W=c(0.05218652, 0.01113460),
            X=c(2.722713, 9.362432),
            Y=c(-0.4569579, 1.2470822))
@@ -24,27 +23,18 @@ omega <- c(0, 3, 3)
 S <- matrix(c(10, 1, 1, 0.5), 2 ,2)
 n <- 200
 
-
-###################################################
-### code chunk number 3: tmle-npvi.Rnw:141-144
-###################################################
+## ------------------------------------------------------------------------
 sim <- getSample(n, O, lambda0, p=p, omega=omega, sigma2=1, Sigma3=S)
 obs <- sim$obs
 head(obs)
 
-
-###################################################
-### code chunk number 4: tmle-npvi.Rnw:153-157
-###################################################
+## ------------------------------------------------------------------------
 V <- matrix(runif(3*nrow(obs)), ncol=3)
 colnames(V) <- paste("V", 1:3, sep="")
 obs <- cbind(V, obs)
 head(obs)
 
-
-###################################################
-### code chunk number 5: tmle-npvi.Rnw:180-194
-###################################################
+## ------------------------------------------------------------------------
 sim <- getSample(1e4, O, lambda0, p=p, omega=omega, 
                  sigma2=1, Sigma3=S, verbose=log)
 truePsi <- sim$psi
@@ -60,10 +50,7 @@ msg <- c(msg, "\toptimal 95%-confidence interval is: ",
          paste(signif(confInt, 3)), "\n")
 cat(msg)
 
-
-###################################################
-### code chunk number 6: tmle-npvi.Rnw:200-214
-###################################################
+## ------------------------------------------------------------------------
 sim2 <- getSample(1e4, O, lambda0, p=p, omega=omega, 
                   sigma2=1, Sigma3=S, f=atan, verbose=log)
 truePsi2 <- sim2$psi
@@ -79,41 +66,26 @@ msg <- c(msg, "\toptimal 95%-confidence interval is: ",
          paste(signif(confInt2, 3)), "\n")
 cat(msg)
 
-
-###################################################
-### code chunk number 7: tmle-npvi.Rnw:227-232
-###################################################
+## ------------------------------------------------------------------------
 X0 <- O[2,2]
 obsC <- obs
 obsC[, "X"] <- obsC[, "X"] - X0
 obs <- obsC
 head(obs)
 
-
-###################################################
-### code chunk number 8: tmle-npvi.Rnw:244-246
-###################################################
+## ------------------------------------------------------------------------
 npvi <- tmle.npvi(obs, f=identity, flavor="learning")
 npvi
 
-
-###################################################
-### code chunk number 9: tmle-npvi.Rnw:265-267
-###################################################
+## ------------------------------------------------------------------------
 setConfLevel(npvi, 0.9)
 npvi
 
-
-###################################################
-### code chunk number 10: tmle-npvi.Rnw:274-276
-###################################################
+## ------------------------------------------------------------------------
 history <- getHistory(npvi)
 print(round(history, 4))
 
-
-###################################################
-### code chunk number 11: confInt
-###################################################
+## ----confInt, include=FALSE----------------------------------------------
 hp <- history[, "psi"]
 hs <- history[, "sic"]
 hs[1] <- NA
@@ -130,10 +102,51 @@ dummy <- sapply(seq(along=xs), function(x) lines(c(xs[x],xs[x]), hp[x]+ics[, x])
 abline(h=confInt, col="blue")
 abline(h=confInt0, col="red")
 
+## ------------------------------------------------------------------------
+data(tcga2012brca)
 
-###################################################
-### code chunk number 12: tmle-npvi.Rnw:318-319
-###################################################
+## ------------------------------------------------------------------------
+nms <- names(tcga2012brca)
+str(nms)
+
+## ----pairs---------------------------------------------------------------
+ii <- grep("TP53", nms)
+obs <- tcga2012brca[[ii]]
+head(obs)
+
+## ------------------------------------------------------------------------
+thr <- 0.02
+whichSmall <- which(abs(obs[, "X"]) <= thr)
+cols <- rep("black", nrow(obs))
+cols[whichSmall] <- "green"
+pairs(obs, main=nms[ii], col=cols, pch=19, cex=0.5)
+
+## thresholding
+whichSmall <- which(abs(obs[, "X"]) <= thr)
+obs[whichSmall, "X"] <- 0
+
+## ------------------------------------------------------------------------
+npvi.TP53 <- tmle.npvi(obs)
+npvi.TP53
+
+## ----eval=FALSE----------------------------------------------------------
+#  system.file("testScripts/tcga2012brca/01.merge,manyCG.R",
+#              package="tmle.npvi")
+
+## ----eval=FALSE----------------------------------------------------------
+#  system.file("testScripts/tcga2012brca/01.1.exportGeneLevelData.R",
+#              package="tmle.npvi")
+
+## ----eval=FALSE----------------------------------------------------------
+#  system.file("testScripts/tcga2012brca/02.tmle.npvi.R",
+#              package="tmle.npvi")
+
+## ----eval=FALSE----------------------------------------------------------
+#  system.file("testScripts/tcga2012brca/03.pValues.R",
+#              package="tmle.npvi")
+#  system.file("testScripts/tcga2012brca/04.propZero.R",
+#              package="tmle.npvi")
+
+## ----echo=FALSE----------------------------------------------------------
 sessionInfo()
-
 

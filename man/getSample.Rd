@@ -103,10 +103,6 @@ continuous exposure. Electronic journal of statistics, 6, 1059--1099.}
 
 
 \examples{
-## Setting the verbosity parameter
-library(R.utils)
-log <- Arguments$getVerbose(-8, timestamp=TRUE)
-
 ## Parameters for the simulation (case 'f=identity')
 O <- cbind(W=c(0.05218652, 0.01113460),
            X=c(2.722713, 9.362432),
@@ -132,7 +128,7 @@ obsV <- cbind(V, obs)
 head(obsV)
 
 ## True psi and confidence intervals (case 'f=identity')      
-sim01 <- getSample(1e4, O, lambda0, p=p, omega=omega, sigma2=1, Sigma3=S, verbose=log)
+sim01 <- getSample(1e4, O, lambda0, p=p, omega=omega, sigma2=1, Sigma3=S)
 truePsi1 <- sim01$psi
 
 confInt01 <- truePsi1+c(-1, 1)*qnorm(.975)*sqrt(sim01$varIC/nrow(sim01$obs))
@@ -147,7 +143,7 @@ cat(msg)
 
 ## True psi and confidence intervals (case 'f=atan')
 f2 <- function(x) {1*atan(x/1)}
-sim02 <- getSample(1e4, O, lambda0, p=p, omega=omega, sigma2=1, Sigma3=S, f=f2, verbose=log);
+sim02 <- getSample(1e4, O, lambda0, p=p, omega=omega, sigma2=1, Sigma3=S, f=f2);
 truePsi2 <- sim02$psi;
 
 confInt02 <- truePsi2+c(-1, 1)*qnorm(.975)*sqrt(sim02$varIC/nrow(sim02$obs))

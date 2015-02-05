@@ -1,13 +1,16 @@
 \name{tmle.npvi}
 \alias{tmle.npvi}
+\alias{tmle.npvi}
 \title{Targeted Minimum Loss Estimation of NPVI}
 \description{Carries   out  the   targeted  minimum   loss  estimation   (TMLE)   of  a
 non-parametric variable importance measure of a continuous exposure.}
-\usage{tmle.npvi(obs, f = identity, flavor = c("learning", "superLearning"), 
-    lib = list(), nodes = 1L, cvControl = NULL, family = c("parsimonious", 
-        "gaussian"), cleverCovTheta = FALSE, bound = 1, B = 100000L, 
-    trueGMu = NULL, iter = 5L, stoppingCriteria = list(mic = 0.01, 
-        div = 0.01, psi = 0.1), gmin = 0.05, gmax = 0.95, verbose = FALSE, 
+\usage{tmle.npvi(obs, f = identity, nMax = 30L, flavor = c("learning", 
+    "superLearning"), lib = list(), nodes = 1L, cvControl = NULL, 
+    family = c("parsimonious", "gaussian"), cleverCovTheta = FALSE, 
+    bound = 1, B = 1e+05, trueGMu = NULL, iter = 5L, stoppingCriteria = list(mic = 0.01, 
+        div = 0.01, psi = 0.1), gmin = 0.05, gmax = 0.95, mumin = quantile(f(obs[obs[, 
+        "X"] != 0, "X"]), type = 1, probs = 0.01), mumax = quantile(f(obs[obs[, 
+        "X"] != 0, "X"]), type = 1, probs = 0.99), verbose = FALSE, 
     tabulate = TRUE, exact = TRUE, light = TRUE)}
 \arguments{
   \item{obs}{A \code{n x p} \code{matrix} of observations, with \eqn{p \ge 3}.
@@ -22,6 +25,13 @@ account in the definition of the "effect" of \eqn{X} on
   \item{f}{A \code{function} involved in the  definition of the parameter of interest
 \eqn{\psi},  which must  satisfy  \eqn{f(0)=0} (see  Details). Defaults  to
 \code{identity}.}
+  \item{nMax}{An \code{integer} (defaults to \code{30L}; \code{10L} is the
+smallest authorized value and we recommend a value less than
+\code{50L} for reasonable computational time) indicating the maximum number of
+observed values of \eqn{X\neq 0} which are used to create the
+supports of the conditional distributions of \eqn{X} given \eqn{W}
+and \eqn{X\neq0} involved in the simulation under \eqn{P_n^k} when
+\code{family} is set to "parsimonious".}
   \item{flavor}{Indicates whether the construction of the relevant features of \eqn{P_n^0}
 and \eqn{P_n^k}, the (non-targeted  yet) initial and (targeted) successive
 updated estimators of the true distribution of \eqn{(W,X,Y)} relies on the
@@ -73,6 +83,14 @@ be smaller than \code{gmax}.}
 of values  of the estimated probabilities  \eqn{P_n^k(X=0|W)} that \eqn{X}
 be  equal to  its  reference  value \code{0}  given  \eqn{W}. Defaults  to
 \code{95e-2}, and must be larger than \code{gmin}.}
+  \item{mumin}{A  \code{numeric}, lower-bound  on the  range of  values of  the estimated
+conditional  expectation  \eqn{E_{P_n^k}(X|X\neq  0,W)} of  \eqn{X}  given
+\eqn{X\neq 0} and \eqn{W}.  Defaults  to the first percentile of \code{X},
+and must be smaller than \code{mumax}.}
+  \item{mumax}{A  \code{numeric}, upper-bound  on the  range of  values of  the estimated
+conditional  expectation  \eqn{E_{P_n^k}(X|X\neq  0,W)} of  \eqn{X}  given
+\eqn{X\neq 0}  and \eqn{W}.  Defaults  to the 99th percentile  of \eqn{X},
+and must be larger than \code{mumin}.}
   \item{verbose}{Prescribes the amount of information  output by the function.  Defaults to
 \code{FALSE}.}
   \item{tabulate}{A  \code{logical},  kept  for   compatibility,  which  should  be  set  to
@@ -123,11 +141,11 @@ A  valid  \code{lib} argument  must  mimick  the  structure of  either
 \code{flavor}.
 
 The  "superLearning"  \code{flavor}  requires the  \code{SuperLearner}
-package  and, by  default, the  \code{DSA},  \code{e1071}, \code{gam},
+package  and, by  default, the  \code{e1071}, \code{gam},
 \code{glmnet}, \code{polspline} and \code{randomForest} packages.
 
 If  \code{family}  is set  to  "parsimonious"  (recommended) then  the
-package \code{sgeostat} is required.}
+packages \code{sgeostat} and \code{geometry} are required.}
 \value{Returns an object of class "NPVI" summarizing the different steps
 of the  TMLE procedure. The \code{method}  \code{getHistory} outputs the
 "history" of the procedure  (see \code{getHistory}).  The object notably
@@ -148,11 +166,7 @@ continuous exposure. Electronic  journal of statistics, 6, 1059--1099.}
 
 \seealso{getSample, getHistory}
 \examples{
-## Setting the verbosity parameter and seed
-library("R.utils")
-log <- Arguments$getVerbose(-8, timestamp=TRUE)
 set.seed(12345)
-
 ##
 ## Simulating a data set and computing the true value of the parameter
 ##
@@ -183,7 +197,7 @@ obsC[, "X"] <- obsC[, "X"] - X0
 obs <- obsC
 
 ## True psi and confidence intervals (case 'f=identity')      
-sim <- getSample(1e4, O, lambda0, p=p, omega=omega, sigma2=1, Sigma3=S, verbose=log)
+sim <- getSample(1e4, O, lambda0, p=p, omega=omega, sigma2=1, Sigma3=S)
 truePsi <- sim$psi
 
 confInt0 <- truePsi + c(-1, 1)*qnorm(.975)*sqrt(sim$varIC/nrow(sim$obs))
@@ -201,7 +215,7 @@ cat(msg)
 ##
 
 ## Running the TMLE procedure
-npvi <- tmle.npvi(obs, f=identity, flavor="learning")
+npvi <- tmle.npvi(obs, f=identity, flavor="learning", B=5e4, nMax=10)
 
 ## Summarizing its results
 npvi

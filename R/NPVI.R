@@ -1,5 +1,5 @@
 setConstructorS3("NPVI", function(obs=matrix(nrow=0, ncol=3, dimnames=list(NULL, c("W", "X", "Y"))),
-                                  f=identity,
+                                  f=identity, nMax=10L,
                                   gmin=0.01, gmax=1-gmin, mumin=-Inf,
                                   mumax=Inf, thetamin=-Inf, thetamax=Inf,
                                   family=c("parsimonious", "gaussian"), tabulate=TRUE,
@@ -18,6 +18,9 @@ setConstructorS3("NPVI", function(obs=matrix(nrow=0, ncol=3, dimnames=list(NULL,
     throw("Argument 'f' must be a function such that f(0)=0.")
   }
 
+  ## Argument 'nMax':
+  nMax <- Arguments$getInteger(nMax, c(10, Inf));
+  
   ## Arguments 'gmin' and 'gmax':
   gmin <- Arguments$getNumeric(gmin);
   gmax <- Arguments$getNumeric(gmax);
@@ -76,7 +79,32 @@ setConstructorS3("NPVI", function(obs=matrix(nrow=0, ncol=3, dimnames=list(NULL,
     throw("Unauthorized, because not implemented (it is a sub-optimal combination of options).")
   }
 
-  obs[, "X"] <- f(obs[, "X"])
+  obs[, "X"] <- X <- f(obs[, "X"])
+  if (length(X)==0) {
+    Xq <- data.frame(value=numeric(0), index=integer(0))
+  } else {
+    Xneq0 <- X[X!=0]
+    Xq <- unique(quantile(Xneq0, type=1, probs=seq(0, 1, length=nMax-1)))
+    if (length(setdiff(Xq, Xneq0))) {
+      throw("In 'NPVI': components of 'Xq' must be observed values of 'X'...")
+    }
+    Xq.idx <- match(Xq, X)
+    Xq0.idx <- which(X==0)[1]
+    Xq <- data.frame(value=c(0, Xq), index=c(Xq0.idx, Xq.idx))
+  }
+
+  Y <- obs[, "Y"]
+  if (length(Y)==0) {
+    Yq <- data.frame(value=numeric(0), index=integer(0))
+  } else {
+    Yq <- unique(quantile(Y, type=1, probs=seq(0, 1, length=nMax)))
+    if (length(setdiff(Yq, Y))) {
+      throw("In 'NPVI': components of 'Yq' must be observed values of 'Y'...")
+    }
+    Yq.idx <- match(Yq, Y)
+    Yq <- data.frame(value=Yq, index=Yq.idx)
+  }
+
   
   theW <- setdiff(colnames(obs), c("X", "Y"))
   if (!tabulate & length(theW)>1) {
@@ -92,6 +120,7 @@ setConstructorS3("NPVI", function(obs=matrix(nrow=0, ncol=3, dimnames=list(NULL,
   
   extend(Object(), "NPVI",
          .obs=obs, #.flavor=flavor,
+         .Xq=Xq, .Yq=Yq,
          .g=NULL, .mu=NULL, .theta=NULL, .theta0=NULL, .weightsW=rep(1, nrow(obs)), 
          .gtab=NULL, .mutab=NULL, .thetatab=NULL, .theta0tab=NULL,
          .sigma2=NA, .psi=NA, .psi.sd=NA, .psiPn=NA, .psiPn.sd=NA,
@@ -105,10 +134,18 @@ setConstructorS3("NPVI", function(obs=matrix(nrow=0, ncol=3, dimnames=list(NULL,
          );
 })
 
-
-setMethodS3("getFlavor", "NPVI", function(this, ...) {
-  this$.flavor;
+setMethodS3("getXq", "NPVI", function(this, ...) {
+  this$.Xq;
 })
+
+setMethodS3("getYq", "NPVI", function(this, ...) {
+  this$.Yq;
+})
+
+
+## setMethodS3("getFlavor", "NPVI", function(this, ...) {
+##   this$.flavor;
+## })
 
 setMethodS3("getMicTol", "NPVI", function(this, ...) {
   this$.stoppingCriteria$mic;
@@ -201,7 +238,7 @@ setMethodS3("getHistory", "NPVI", function(#Returns History of TMLE Procedure
 })
 
 setMethodS3("updateHistory", "NPVI", function(this, ...) {
-  history <- getHistory(this);
+  history <- tmle.npvi::getHistory.NPVI(this);
   psi <- getPsi(this);
   psi.sd <- getPsiSd(this);  
   epsilon <- getEpsilon(this);
@@ -481,6 +518,13 @@ setMethodS3("as.character", "NPVI", function(#Returns a Description
   s <- sprintf("%s object:", class(this)[1]);
   s <- c(s, "")
 
+  ##   switched to from 'superLearning' to 'learning'?
+  flag <- attr(this, "flag")
+  if (!is.null(flag)) {
+    s <- c(s, flag, "")
+  } 
+
+  
   ## sample size
   s <- c(s, sprintf("Sample size: %s", nrow(getObs(this))))
   s <- c(s, "")
@@ -523,7 +567,7 @@ setMethodS3("as.character", "NPVI", function(#Returns a Description
     s <- c(s, msg2, msg)
     s <- c(s, "")
   }
-
+  
   ## confidence intervals
   psi <- getPsi(this)
   alpha <- 1-getConfLevel(this)
@@ -763,7 +807,7 @@ setMethodS3("updateConv", "NPVI", function(x, B, ...) {
   psi.tol <- getPsiTol(this)
   ## extracting the relevant components of history
   ## (whether 'cleverCovTheta' is TRUE or FALSE)
-  hist <- getHistory(this)
+  hist <- tmle.npvi::getHistory.NPVI(this)
   step <- as.integer(gsub("step([0-9]+)", "\\1", rownames(hist)))
   idxs <- c(which(diff(step)==1), length(step))
   hist <- tail(hist[idxs, ], 2)
@@ -818,6 +862,60 @@ setMethodS3("updateConv", "NPVI", function(x, B, ...) {
   attr(conv, "msg") <- msg
   this$.conv <- conv
 })
+
+setMethodS3("getPValue", "NPVI", function(# Calculates a p-value from a NPVI object
+### Calculates a p-value from a NPVI object
+    this,
+### An object of class \code{TMLE.NPVI}.
+    wrt.phi=TRUE,
+### A  \code{logical}  equal  to  \code{TRUE}  by default,  which  means  that
+### \eqn{psi_n}  is  compared  with  \eqn{phi_n}.  Otherwise,  \eqn{psi_n}  is
+### compared with 0.
+    ...
+### Not used.
+
+){
+    ##seealso<< tmle.npvi, getHistory, as.character.NPVI, getPValue.matrix
+    nobs <- nrow(getObs(this))
+    history <- getHistory.NPVI(this)
+    getPValue(history, wrt.phi=wrt.phi, nobs=nobs)
+### Returns the p-value of the two-sided test of
+### ``\eqn{Psi(P_0)=Phi(P_0)}'' or ``\eqn{Psi(P_0)=0}'', according to
+### the value of \code{wrt.phi}.
+})
+
+setMethodS3("getPValue", "matrix", function(# Calculates a p-value from a matrix object of type 'history'
+### Calculates a p-value from a matrix object of type 'history'
+    this,
+### The \code{history} of a TMLE procedure.
+    wrt.phi=TRUE,
+### A  \code{logical}  equal  to  \code{TRUE}  by default,  which  means  that
+### \eqn{psi_n}  is  compared  with  \eqn{phi_n}.  Otherwise,  \eqn{psi_n}  is
+### compared with 0.
+    nobs,
+### An \code{integer}, the associated number of observations.
+    ...
+### Not used.
+){
+    ##alias<< getPValue
+    ##seealso<< tmle.npvi, getHistory.NPVI, as.character.NPVI
+    y <- this[nrow(this), ]
+    psi <- y["psi"]
+    if (wrt.phi) {
+        phi <- y["phi"]
+        se <- y["sicAlt"]/sqrt(nobs)
+    } else {
+        phi <- 0
+        se <- y["psi.sd"]/sqrt(nobs)
+    }
+    pval <- 2*pnorm(abs(psi-phi), sd=se, lower.tail=FALSE)
+    names(pval) <- "p.value"
+    return(pval)
+### Returns the p-value of the two-sided test of
+### ``\eqn{Psi(P_0)=Phi(P_0)}'' of ``\eqn{Psi(P_0)=0}'', according to
+### the value of \code{wrt.phi}.
+})
+
 
 ############################################################################
 ## HISTORY:
