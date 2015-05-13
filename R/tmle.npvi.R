@@ -3,15 +3,14 @@ tmle.npvi. <- structure(
 ### Carries   out  the   targeted  minimum   loss  estimation   (TMLE)   of  a
 ### non-parametric variable importance measure of a continuous exposure.
     (obs,
-### A \code{n x p} \code{matrix} of observations, with \eqn{p \ge 3}.
-### \itemize{ \item{Column \code{"X"} corresponds to the continuous
-### exposure variable (e.g. DNA copy number), or "cause" in a causal
-### model, with a reference value \eqn{x_0} equal to 0.} \item{Column
-### \code{"Y"} corresponds to the outcome variable (e.g. gene
-### expression level), or "effect" in a causal model.} \item{All other
-### columns are interpreted as baseline covariates \eqn{W} taken into
-### account in the definition of the "effect" of \eqn{X} on
-### \eqn{Y}.}}
+### A \code{n  x p} \code{matrix}  or \code{data frame} of  observations, with
+### \eqn{p  \ge  3}.  \itemize{  \item{Column  \code{"X"}  corresponds to  the
+### continuous  exposure variable  (e.g. DNA  copy  number), or  "cause" in  a
+### causal model, with  a reference value \eqn{x_0} equal  to 0.} \item{Column
+### \code{"Y"}  corresponds  to the  outcome  variable  (e.g. gene  expression
+### level),  or "effect"  in  a  causal model.}  \item{All  other columns  are
+### interpreted  as baseline  covariates  \eqn{W} taken  into  account in  the
+### definition of the "effect" of \eqn{X} on \eqn{Y}.}}
      f=identity,
 ### A \code{function} involved in the  definition of the parameter of interest
 ### \eqn{\psi},  which must  satisfy  \eqn{f(0)=0} (see  Details). Defaults  to
@@ -125,6 +124,11 @@ tmle.npvi. <- structure(
       ##Estimation  of  a  non-parametric  variable importance  measure  of  a
       ##continuous exposure. Electronic  journal of statistics, 6, 1059--1099.
 
+      ##references<<  Chambaz, A., Neuvial,  P. (2015).   tmle.npvi: targeted,
+      ##integrative search  of associations between  DNA copy number  and gene
+      ##expression,   accounting   for   DNA   methylation.   To   appear   in
+      ##Bioinformatics Applications Notes.
+
       ##details<< The  parameter of interest is  defined as \eqn{\psi=\Psi(P)}
       ##with    \deqn{\Psi(P)    =    \frac{E_P[f(X)    *    (\theta(X,W)    -
       ##\theta(0,W))]}{E_P[f(X)^2]},}{\Psi(P)  =  E_P[f(X)  *  (\theta(X,W)  -
@@ -232,6 +236,19 @@ tmle.npvi. <- structure(
       ## - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       if (any(is.na(obs))) {
         throw("The matrix 'obs' contains at least one 'NA'. This is not allowed.")
+      }
+      if (is.data.frame(obs)) {
+        nms <- colnames(obs)
+        varNames <- c("X", "Y")
+        m <- match(varNames, nms)
+        if (ncol(obs)<3 | any(is.na(m))) {
+          throw("The data frame 'obs' must contain at least three columns, including 'X' and 'Y'.")
+        }
+        XY <- cbind(X=as.numeric(obs[, "X"]), Y=as.numeric(obs[, "Y"]))
+        W <- model.matrix(~.-1, obs[, -m])        
+        attr(W, "assign") <- NULL
+        attr(W, "contrasts") <- NULL
+        obs <- cbind(XY, W)
       }
 
       p0min <- 0.1

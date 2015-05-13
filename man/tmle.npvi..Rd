@@ -13,15 +13,14 @@ non-parametric variable importance measure of a continuous exposure.}
         "X"] != 0, "X"]), type = 1, probs = 0.99), verbose = FALSE, 
     tabulate = TRUE, exact = TRUE, light = TRUE)}
 \arguments{
-  \item{obs}{A \code{n x p} \code{matrix} of observations, with \eqn{p \ge 3}.
-\itemize{ \item{Column \code{"X"} corresponds to the continuous
-exposure variable (e.g. DNA copy number), or "cause" in a causal
-model, with a reference value \eqn{x_0} equal to 0.} \item{Column
-\code{"Y"} corresponds to the outcome variable (e.g. gene
-expression level), or "effect" in a causal model.} \item{All other
-columns are interpreted as baseline covariates \eqn{W} taken into
-account in the definition of the "effect" of \eqn{X} on
-\eqn{Y}.}}}
+  \item{obs}{A \code{n  x p} \code{matrix}  or \code{data frame} of  observations, with
+\eqn{p  \ge  3}.  \itemize{  \item{Column  \code{"X"}  corresponds to  the
+continuous  exposure variable  (e.g. DNA  copy  number), or  "cause" in  a
+causal model, with  a reference value \eqn{x_0} equal  to 0.} \item{Column
+\code{"Y"}  corresponds  to the  outcome  variable  (e.g. gene  expression
+level),  or "effect"  in  a  causal model.}  \item{All  other columns  are
+interpreted  as baseline  covariates  \eqn{W} taken  into  account in  the
+definition of the "effect" of \eqn{X} on \eqn{Y}.}}}
   \item{f}{A \code{function} involved in the  definition of the parameter of interest
 \eqn{\psi},  which must  satisfy  \eqn{f(0)=0} (see  Details). Defaults  to
 \code{identity}.}
@@ -159,7 +158,12 @@ parameter of interest. Use the \code{method} \code{getPsiSd} to retrieve
 it.}}
 \references{Chambaz, A.,  Neuvial, P., & van der  Laan, M. J. (2012).
 Estimation  of  a  non-parametric  variable importance  measure  of  a
-continuous exposure. Electronic  journal of statistics, 6, 1059--1099.}
+continuous exposure. Electronic  journal of statistics, 6, 1059--1099.
+
+Chambaz, A., Neuvial,  P. (2015).   tmle.npvi: targeted,
+integrative search  of associations between  DNA copy number  and gene
+expression,   accounting   for   DNA   methylation.   To   appear   in
+Bioinformatics Applications Notes.}
 \author{Antoine Chambaz, Pierre Neuvial}
 
 
